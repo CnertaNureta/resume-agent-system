@@ -130,13 +130,23 @@ cd backend
 npm install
 ```
 
-### 3. 配置邮箱
+### 3. 配置环境变量
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，填入你的邮箱 SMTP 配置：
+编辑 `.env` 文件，填入 AI 和邮箱配置：
+
+**智谱 GLM 大模型配置（必填，用于 AI 简历优化）:**
+```env
+ZHIPUAI_API_KEY=你的API Key
+GLM_MODEL=glm-4-flash
+```
+
+> API Key 获取：访问 [智谱开放平台](https://open.bigmodel.cn/usercenter/apikeys)，注册后创建 API Key
+>
+> 可选模型：`glm-4`（最强）、`glm-4-flash`（快速，推荐）、`glm-3-turbo`（经济）
 
 **QQ 邮箱配置示例:**
 ```env
@@ -243,6 +253,7 @@ npm run dev
 |------|------|
 | 浏览器扩展 | Chrome Extension Manifest V3, vanilla JS |
 | 后端服务 | Node.js, Express, TypeScript |
+| AI 大模型 | 智谱 GLM (glm-4-flash)，用于简历优化和求职信生成 |
 | 简历解析 | pdf-parse, 正则表达式 |
 | 邮件发送 | Nodemailer (SMTP) |
 | 数据存储 | 内存存储（可扩展为数据库） |

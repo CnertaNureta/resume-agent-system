@@ -1,19 +1,24 @@
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ZhipuAI } from 'zhipuai';
 import { JobInfo, ResumeData, CustomizedResume } from '../types';
 
 /**
  * 简历定制服务
- * 根据岗位要求智能优化简历内容
+ * 使用智谱 GLM 大模型根据岗位要求智能优化简历
  */
 export class ResumeCustomizer {
   private outputDir: string;
+  private client: ZhipuAI | null = null;
 
   constructor(outputDir: string) {
     this.outputDir = outputDir;
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
+    }
+    if (process.env.ZHIPUAI_API_KEY) {
+      this.client = new ZhipuAI({ apiKey: process.env.ZHIPUAI_API_KEY });
     }
   }
 
@@ -23,15 +28,26 @@ export class ResumeCustomizer {
   async customize(resume: ResumeData, jobInfo: JobInfo): Promise<CustomizedResume> {
     const id = uuidv4();
 
-    // 生成定制化简历内容
-    const customizedText = this.generateCustomizedResume(resume, jobInfo);
+    let customizedText: string;
+    let coverLetter: string;
+    let emailSubject: string;
+    let emailBody: string;
 
-    // 生成求职信
-    const coverLetter = this.generateCoverLetter(resume, jobInfo);
-
-    // 生成邮件主题和正文
-    const emailSubject = this.generateEmailSubject(resume, jobInfo);
-    const emailBody = this.generateEmailBody(resume, jobInfo, coverLetter);
+    if (this.client) {
+      // 使用 GLM 大模型生成
+      const aiResult = await this.aiCustomize(resume, jobInfo);
+      customizedText = aiResult.customizedResume;
+      coverLetter = aiResult.coverLetter;
+      emailSubject = aiResult.emailSubject;
+      emailBody = aiResult.emailBody;
+    } else {
+      // 回退到规则匹配
+      console.warn('未配置 ZHIPUAI_API_KEY，使用规则匹配模式');
+      customizedText = this.fallbackCustomize(resume, jobInfo);
+      coverLetter = this.fallbackCoverLetter(resume, jobInfo);
+      emailSubject = `求职申请 - ${jobInfo.title} - ${resume.parsedSections.name || '候选人'}`;
+      emailBody = `${coverLetter}\n\n------\n本邮件通过「简历智投」系统发送\n文章来源: ${jobInfo.articleTitle}\n${jobInfo.articleUrl}`;
+    }
 
     // 保存定制化简历文件
     const customizedFileName = this.sanitizeFileName(
@@ -56,6 +72,109 @@ export class ResumeCustomizer {
   }
 
   /**
+   * 调用 GLM 大模型进行智能定制
+   */
+  private async aiCustomize(resume: ResumeData, jobInfo: JobInfo): Promise<{
+    customizedResume: string;
+    coverLetter: string;
+    emailSubject: string;
+    emailBody: string;
+  }> {
+    const model = process.env.GLM_MODEL || 'glm-4-flash';
+    const name = resume.parsedSections.name || '候选人';
+    const salutation = jobInfo.contactName || 'HR';
+
+    // 1. 生成定制化简历
+    const resumeResponse = await this.client!.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: '你是一位资深的职业规划师和简历优化专家。请根据目标岗位要求，优化候选人的简历内容。要求：1）突出与岗位匹配的经验和技能；2）将最相关的内容前置；3）用专业但简洁的语言重写；4）保持真实，不捏造经历；5）输出纯文本格式的完整简历。',
+        },
+        {
+          role: 'user',
+          content: `## 目标岗位信息
+岗位：${jobInfo.title}
+公司：${jobInfo.company}
+${jobInfo.location ? `地点：${jobInfo.location}` : ''}
+${jobInfo.salary ? `薪资：${jobInfo.salary}` : ''}
+
+任职要求：
+${jobInfo.requirements.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+
+工作职责：
+${jobInfo.responsibilities.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+
+## 候选人原始简历
+${resume.rawText}
+
+请根据以上岗位要求，优化这份简历。直接输出优化后的完整简历文本，不要加任何解释。`,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 3000,
+    });
+    const customizedResume = resumeResponse.choices[0]?.message?.content || this.fallbackCustomize(resume, jobInfo);
+
+    // 2. 生成求职信 + 邮件主题 + 邮件正文
+    const emailResponse = await this.client!.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: '你是一位求职邮件撰写专家。请根据岗位信息和候选人简历，生成求职信、邮件主题和邮件正文。要求真诚、专业、简洁，突出候选人与岗位的匹配度。请严格按照指定的 JSON 格式输出。',
+        },
+        {
+          role: 'user',
+          content: `## 岗位信息
+岗位：${jobInfo.title}
+公司：${jobInfo.company}
+联系人：${salutation}
+
+任职要求：
+${jobInfo.requirements.slice(0, 5).join('、')}
+
+## 候选人信息
+姓名：${name}
+${resume.parsedSections.phone ? `电话：${resume.parsedSections.phone}` : ''}
+${resume.parsedSections.email ? `邮箱：${resume.parsedSections.email}` : ''}
+${resume.parsedSections.summary ? `简介：${resume.parsedSections.summary.substring(0, 200)}` : ''}
+
+来源：微信公众号文章《${jobInfo.articleTitle}》
+
+请生成以下内容，严格按此 JSON 格式输出（不要加 markdown 代码块标记）：
+{"coverLetter": "求职信全文", "emailSubject": "邮件主题", "emailBody": "邮件正文（包含求职信，末尾注明来源）"}`,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+
+    const emailContent = emailResponse.choices[0]?.message?.content || '';
+
+    // 解析 JSON 响应
+    let coverLetter: string;
+    let emailSubject: string;
+    let emailBody: string;
+
+    try {
+      const cleaned = emailContent.replace(/```json\s*|```\s*/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      coverLetter = parsed.coverLetter || this.fallbackCoverLetter(resume, jobInfo);
+      emailSubject = parsed.emailSubject || `求职申请 - ${jobInfo.title} - ${name}`;
+      emailBody = parsed.emailBody || `${coverLetter}\n\n------\n本邮件通过「简历智投」系统发送\n文章来源: ${jobInfo.articleTitle}\n${jobInfo.articleUrl}`;
+    } catch {
+      // JSON 解析失败，使用 AI 原始输出作为求职信，其余回退
+      coverLetter = emailContent || this.fallbackCoverLetter(resume, jobInfo);
+      emailSubject = `求职申请 - ${jobInfo.title} - ${name}`;
+      emailBody = `${coverLetter}\n\n------\n本邮件通过「简历智投」系统发送\n文章来源: ${jobInfo.articleTitle}\n${jobInfo.articleUrl}`;
+    }
+
+    return { customizedResume, coverLetter, emailSubject, emailBody };
+  }
+
+  /**
    * 清理文件名，避免非法字符导致写入失败
    */
   private sanitizeFileName(fileName: string): string {
@@ -66,144 +185,53 @@ export class ResumeCustomizer {
   }
 
   /**
-   * 生成定制化简历
-   * 根据岗位要求重新组织和优化简历内容
+   * 规则匹配回退 - 简历定制
    */
-  private generateCustomizedResume(resume: ResumeData, jobInfo: JobInfo): string {
+  private fallbackCustomize(resume: ResumeData, jobInfo: JobInfo): string {
     const sections = resume.parsedSections;
     const keywords = this.extractKeywords(jobInfo);
-
     let customized = '';
 
-    // 个人信息
     customized += `${sections.name || '候选人'}\n`;
     if (sections.phone) customized += `电话: ${sections.phone}\n`;
     if (sections.email) customized += `邮箱: ${sections.email}\n`;
     customized += '\n';
 
-    // 求职意向 - 匹配岗位
-    customized += `求职意向\n`;
-    customized += `${'─'.repeat(40)}\n`;
-    customized += `目标岗位: ${jobInfo.title}\n`;
-    customized += `目标公司: ${jobInfo.company}\n`;
+    customized += `求职意向\n${'─'.repeat(40)}\n`;
+    customized += `目标岗位: ${jobInfo.title}\n目标公司: ${jobInfo.company}\n`;
     if (jobInfo.location) customized += `工作地点: ${jobInfo.location}\n`;
     customized += '\n';
 
-    // 个人摘要 - 突出匹配度
     if (sections.summary) {
-      customized += `个人简介\n`;
-      customized += `${'─'.repeat(40)}\n`;
-      customized += this.enhanceSummary(sections.summary, keywords);
-      customized += '\n\n';
+      customized += `个人简介\n${'─'.repeat(40)}\n${sections.summary}\n\n`;
     }
-
-    // 工作经验 - 强调相关经验
     if (sections.experience) {
-      customized += `工作经验\n`;
-      customized += `${'─'.repeat(40)}\n`;
-      customized += this.highlightRelevantExperience(sections.experience, keywords);
-      customized += '\n\n';
+      const paragraphs = sections.experience.split(/\n\n+/);
+      const sorted = paragraphs.sort((a, b) => {
+        const scoreA = keywords.reduce((s, k) => s + (a.includes(k) ? 1 : 0), 0);
+        const scoreB = keywords.reduce((s, k) => s + (b.includes(k) ? 1 : 0), 0);
+        return scoreB - scoreA;
+      });
+      customized += `工作经验\n${'─'.repeat(40)}\n${sorted.join('\n\n')}\n\n`;
     }
-
-    // 项目经验
-    if (sections.projects) {
-      customized += `项目经验\n`;
-      customized += `${'─'.repeat(40)}\n`;
-      customized += sections.projects;
-      customized += '\n\n';
-    }
-
-    // 技能 - 重新排序匹配的技能优先
+    if (sections.projects) customized += `项目经验\n${'─'.repeat(40)}\n${sections.projects}\n\n`;
     if (sections.skills) {
-      customized += `专业技能\n`;
-      customized += `${'─'.repeat(40)}\n`;
-      customized += this.reorderSkills(sections.skills, keywords);
-      customized += '\n\n';
+      const skillList = sections.skills.split(/[,，、;\n]/g).map(s => s.trim()).filter(Boolean);
+      const matched = skillList.filter(s => keywords.some(k => s.toLowerCase().includes(k.toLowerCase())));
+      const unmatched = skillList.filter(s => !matched.includes(s));
+      customized += `专业技能\n${'─'.repeat(40)}\n${[...matched, ...unmatched].join('、')}\n\n`;
     }
-
-    // 教育背景
-    if (sections.education) {
-      customized += `教育背景\n`;
-      customized += `${'─'.repeat(40)}\n`;
-      customized += sections.education;
-      customized += '\n';
-    }
+    if (sections.education) customized += `教育背景\n${'─'.repeat(40)}\n${sections.education}\n`;
 
     return customized;
   }
 
   /**
-   * 从岗位信息中提取关键词
+   * 规则匹配回退 - 求职信
    */
-  private extractKeywords(jobInfo: JobInfo): string[] {
-    const allText = [
-      ...jobInfo.requirements,
-      ...jobInfo.responsibilities,
-      jobInfo.title,
-    ].join(' ');
-
-    // 提取中英文关键词
-    const words = allText
-      .split(/[\s,，、;；。.!！?？()（）\[\]【】]/g)
-      .map(w => w.trim())
-      .filter(w => w.length >= 2);
-
-    return [...new Set(words)];
-  }
-
-  /**
-   * 增强个人摘要，突出与岗位的匹配
-   */
-  private enhanceSummary(summary: string, keywords: string[]): string {
-    let enhanced = summary;
-    // 在摘要中标注匹配的关键能力
-    const matchedKeywords = keywords.filter(k => summary.includes(k));
-    if (matchedKeywords.length > 0) {
-      enhanced += `\n核心匹配能力: ${matchedKeywords.join('、')}`;
-    }
-    return enhanced;
-  }
-
-  /**
-   * 高亮相关工作经验
-   */
-  private highlightRelevantExperience(experience: string, keywords: string[]): string {
-    // 简单的关键词匹配排序逻辑
-    const paragraphs = experience.split(/\n\n+/);
-    const scored = paragraphs.map(p => {
-      const score = keywords.reduce((s, k) => s + (p.includes(k) ? 1 : 0), 0);
-      return { text: p, score };
-    });
-    scored.sort((a, b) => b.score - a.score);
-    return scored.map(s => s.text).join('\n\n');
-  }
-
-  /**
-   * 重新排序技能，匹配的优先
-   */
-  private reorderSkills(skills: string, keywords: string[]): string {
-    const skillList = skills.split(/[,，、;\n]/g).map(s => s.trim()).filter(Boolean);
-    const matched: string[] = [];
-    const unmatched: string[] = [];
-
-    for (const skill of skillList) {
-      if (keywords.some(k => skill.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(skill.toLowerCase()))) {
-        matched.push(skill);
-      } else {
-        unmatched.push(skill);
-      }
-    }
-
-    return [...matched, ...unmatched].join('、');
-  }
-
-  /**
-   * 生成求职信
-   */
-  private generateCoverLetter(resume: ResumeData, jobInfo: JobInfo): string {
+  private fallbackCoverLetter(resume: ResumeData, jobInfo: JobInfo): string {
     const name = resume.parsedSections.name || '候选人';
-    const salutation = jobInfo.contactName ? `${jobInfo.contactName}` : 'HR';
-
+    const salutation = jobInfo.contactName || 'HR';
     return `尊敬的${salutation}，您好！
 
 我在贵公司微信公众号文章中看到${jobInfo.title}的招聘信息，非常感兴趣，特此投递简历。
@@ -222,23 +250,9 @@ ${resume.parsedSections.phone || ''}
 ${resume.parsedSections.email || ''}`;
   }
 
-  /**
-   * 生成邮件主题
-   */
-  private generateEmailSubject(resume: ResumeData, jobInfo: JobInfo): string {
-    const name = resume.parsedSections.name || '候选人';
-    return `求职申请 - ${jobInfo.title} - ${name}`;
-  }
-
-  /**
-   * 生成邮件正文
-   */
-  private generateEmailBody(resume: ResumeData, jobInfo: JobInfo, coverLetter: string): string {
-    return `${coverLetter}
-
-------
-本邮件通过「简历智投」系统自动发送
-文章来源: ${jobInfo.articleTitle}
-${jobInfo.articleUrl}`;
+  private extractKeywords(jobInfo: JobInfo): string[] {
+    const allText = [...jobInfo.requirements, ...jobInfo.responsibilities, jobInfo.title].join(' ');
+    const words = allText.split(/[\s,，、;；。.!！?？()（）\[\]【】]/g).map(w => w.trim()).filter(w => w.length >= 2);
+    return [...new Set(words)];
   }
 }
