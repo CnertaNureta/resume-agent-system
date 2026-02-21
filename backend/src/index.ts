@@ -7,6 +7,12 @@ import apiRouter from './routes/api';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const ALLOWED_ORIGINS = new Set([
+  'https://mp.weixin.qq.com',
+]);
+
+const CHROME_EXTENSION_ORIGIN_PATTERN = /^chrome-extension:\/\/[a-p]{32}$/;
+
 // 确保必要目录存在
 const uploadsDir = path.join(process.cwd(), 'uploads');
 const customizedDir = path.join(process.cwd(), 'customized');
@@ -16,8 +22,21 @@ for (const dir of [uploadsDir, customizedDir]) {
 
 // 中间件
 app.use(cors({
-  origin: ['chrome-extension://*', 'https://mp.weixin.qq.com'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  origin: (origin, callback) => {
+    // 允许无 Origin 的请求（如 curl/健康检查）
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (ALLOWED_ORIGINS.has(origin) || CHROME_EXTENSION_ORIGIN_PATTERN.test(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '10mb' }));
