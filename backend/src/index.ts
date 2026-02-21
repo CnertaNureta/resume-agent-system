@@ -48,6 +48,33 @@ app.use(express.urlencoded({ extended: true }));
 // API 路由
 app.use('/api', apiRouter);
 
+// 根路径引导页
+app.get('/', (_req, res) => {
+  res.send(`
+    <html>
+    <head><meta charset="UTF-8"><title>简历智投</title>
+    <style>
+      body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 80px auto; color: #333; }
+      h1 { color: #667eea; } code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; }
+      .ok { color: #38a169; font-weight: bold; }
+      ol { line-height: 2; }
+    </style>
+    </head>
+    <body>
+      <h1>📋 简历智投 后端服务</h1>
+      <p class="ok">✅ 服务运行正常</p>
+      <p>这是后端 API 服务，不提供网页界面。请按以下方式使用：</p>
+      <ol>
+        <li>安装 Chrome 扩展（加载 <code>browser-extension</code> 目录）</li>
+        <li>打开任意微信公众号招聘文章</li>
+        <li>使用页面右侧的「简历智投」面板操作</li>
+      </ol>
+      <p>API 健康检查：<a href="/api/health">/api/health</a></p>
+    </body>
+    </html>
+  `);
+});
+
 // 启动服务器
 app.listen(PORT, () => {
   console.log(`
