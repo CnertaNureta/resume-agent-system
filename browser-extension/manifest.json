@@ -9,7 +9,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://mp.weixin.qq.com/*"
+    "https://mp.weixin.qq.com/*",
+    "http://localhost:3000/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html",

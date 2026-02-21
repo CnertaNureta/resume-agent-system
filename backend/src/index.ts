@@ -16,7 +16,20 @@ for (const dir of [uploadsDir, customizedDir]) {
 
 // 中间件
 app.use(cors({
-  origin: ['chrome-extension://*', 'https://mp.weixin.qq.com'],
+  origin: (origin, callback) => {
+    // Allow non-browser tools (curl/postman) and same-origin requests with no origin header.
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (origin === 'https://mp.weixin.qq.com' || /^chrome-extension:\/\/[a-z]{32}$/.test(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
