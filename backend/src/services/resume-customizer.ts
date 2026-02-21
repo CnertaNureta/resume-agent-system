@@ -34,7 +34,7 @@ export class ResumeCustomizer {
     const emailBody = this.generateEmailBody(resume, jobInfo, coverLetter);
 
     // 保存定制化简历文件
-    const customizedFileName = `${resume.parsedSections.name || 'resume'}_${jobInfo.company}_${jobInfo.title}.txt`;
+    const customizedFileName = this.buildSafeFileName(resume, jobInfo);
     const customizedFilePath = path.join(this.outputDir, `${id}_${customizedFileName}`);
     fs.writeFileSync(customizedFilePath, customizedText, 'utf-8');
 
@@ -51,6 +51,21 @@ export class ResumeCustomizer {
       status: 'pending_review',
       createdAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * 生成安全的文件名，避免非法路径字符导致写文件失败
+   */
+  private buildSafeFileName(resume: ResumeData, jobInfo: JobInfo): string {
+    const rawName = `${resume.parsedSections.name || 'resume'}_${jobInfo.company}_${jobInfo.title}`;
+    const sanitized = rawName
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 120)
+      .replace(/^_+|_+$/g, '');
+
+    return `${sanitized || 'resume_customized'}.txt`;
   }
 
   /**
