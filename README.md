@@ -108,55 +108,100 @@ resume-agent-system/
 └── README.md
 ```
 
-## 快速开始
+## 环境要求
 
-### 1. 安装后端依赖
+- **Node.js** >= 18（推荐使用 [nvm](https://github.com/nvm-sh/nvm) 管理版本）
+- **Chrome 浏览器**（或其他 Chromium 内核浏览器，如 Edge）
+- **Git**
+
+## 快速开始（在任意电脑上）
+
+### 1. 下载代码
 
 ```bash
-cd resume-agent-system/backend
+git clone https://github.com/CnertaNureta/resume-agent-system.git
+cd resume-agent-system
+```
+
+### 2. 安装后端依赖
+
+```bash
+cd backend
 npm install
 ```
 
-### 2. 配置邮箱
+### 3. 配置邮箱
 
 ```bash
 cp .env.example .env
-# 编辑 .env 文件，填入你的邮箱配置
 ```
 
+编辑 `.env` 文件，填入你的邮箱 SMTP 配置：
+
 **QQ 邮箱配置示例:**
-- `SMTP_HOST=smtp.qq.com`
-- `SMTP_PORT=465`
-- `SMTP_USER=你的QQ邮箱`
-- `SMTP_PASS=QQ邮箱授权码`（在 QQ 邮箱设置 → POP3/SMTP 中获取）
+```env
+SMTP_HOST=smtp.qq.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=你的QQ邮箱@qq.com
+SMTP_PASS=QQ邮箱授权码
+SMTP_FROM=你的QQ邮箱@qq.com
+SMTP_FROM_NAME=你的姓名
+```
+
+> 授权码获取方式：登录 QQ 邮箱 → 设置 → 账户 → POP3/SMTP 服务 → 开启并生成授权码
 
 **163 邮箱配置示例:**
-- `SMTP_HOST=smtp.163.com`
-- `SMTP_PORT=465`
-- `SMTP_USER=你的163邮箱`
-- `SMTP_PASS=163邮箱授权码`
+```env
+SMTP_HOST=smtp.163.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=你的163邮箱@163.com
+SMTP_PASS=163邮箱授权码
+SMTP_FROM=你的163邮箱@163.com
+SMTP_FROM_NAME=你的姓名
+```
 
-### 3. 启动后端服务
+### 4. 启动后端服务
 
 ```bash
 npm run dev
 ```
 
-服务将在 `http://localhost:3000` 启动。
+看到如下输出即表示启动成功：
+```
+📋 简历智投 后端服务
+服务地址: http://localhost:3000
+```
 
-### 4. 安装浏览器扩展
+### 5. 安装 Chrome 浏览器扩展
 
-1. 打开 Chrome，访问 `chrome://extensions/`
-2. 开启右上角"开发者模式"
-3. 点击"加载已解压的扩展程序"
-4. 选择 `browser-extension` 目录
-5. 扩展安装完成
+1. 打开 Chrome 浏览器，地址栏输入 `chrome://extensions/`
+2. 开启页面右上角的 **开发者模式**
+3. 点击左上角 **加载已解压的扩展程序**
+4. 在弹出的文件夹选择窗口中，选择项目里的 `browser-extension` 目录
+5. 看到扩展列表中出现「简历智投」即安装成功
 
-### 5. 使用流程
+### 6. 开始使用
 
-1. 打开任意微信公众号招聘文章
-2. 右侧出现「简历智投」操作面板
-3. 按步骤操作：提取 → 上传 → 优化 → 发送
+1. 打开任意微信公众号招聘文章（`mp.weixin.qq.com/s/...`）
+2. 页面右侧会自动出现「简历智投」悬浮操作面板
+3. 按 4 步操作完成投递：
+
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| **Step 1** | 点击「提取岗位信息」 | 自动提取岗位名、公司、要求、投递邮箱 |
+| **Step 2** | 拖拽或点击上传简历 | 支持 PDF / Word / TXT 格式 |
+| **Step 3** | 点击「AI 优化」 | 根据岗位要求自动定制简历，生成求职信和邮件 |
+| **Step 4** | 预览并发送 | 可编辑邮件内容，点击「确认发送」或「跳过确认直接发送」 |
+
+### 可选设置
+
+点击 Chrome 工具栏中的扩展图标，可以：
+- 查看后端服务连接状态
+- 查看今日/总计投递统计
+- 开启 **自动提取岗位**（打开文章时自动提取，无需手动点击）
+- 开启 **跳过人工确认**（AI 优化完成后直接发送，无需确认）
 
 ## API 接口
 
