@@ -1,0 +1,16 @@
+{
+  "name": "resume-agent-system",
+  "version": "1.0.0",
+  "description": "自动投递微信公众号文章内招聘简历的Agent系统",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "cd backend && npm run dev",
+    "build": "cd backend && npm run build",
+    "lint": "cd backend && npm run lint",
+    "start": "cd backend && npm start"
+  }
+}

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>简历智投</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: #333;
+    }
+    .popup-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px;
+      text-align: center;
+    }
+    .popup-header h1 { font-size: 18px; font-weight: 600; }
+    .popup-header p { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+    .popup-body { padding: 16px; }
+    .status-card {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .status-online { background: #f0fff4; color: #38a169; }
+    .status-offline { background: #fff5f5; color: #e53e3e; }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-online .status-dot { background: #38a169; }
+    .status-offline .status-dot { background: #e53e3e; }
+    .info-section {
+      background: #f8f9ff;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .info-section h3 { font-size: 13px; color: #667eea; margin-bottom: 8px; }
+    .info-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+    .info-row .label { color: #666; }
+    .info-row .value { font-weight: 500; }
+    .settings-section { margin-top: 8px; }
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .setting-item:last-child { border-bottom: none; }
+    .setting-label { font-size: 13px; }
+    .setting-hint { font-size: 11px; color: #999; }
+    .toggle {
+      position: relative;
+      width: 40px; height: 22px;
+      background: #ddd;
+      border-radius: 11px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .toggle.active { background: #667eea; }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: white;
+      top: 2px; left: 2px;
+      transition: transform 0.3s;
+    }
+    .toggle.active::after { transform: translateX(18px); }
+    .popup-footer {
+      padding: 12px 16px;
+      border-top: 1px solid #f0f0f0;
+      font-size: 11px;
+      color: #999;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="popup-header">
+    <h1>📋 简历智投</h1>
+    <p>微信公众号招聘文章智能投递助手</p>
+  </div>
+  <div class="popup-body">
+    <div class="status-card" id="server-status">
+      <div class="status-dot"></div>
+      <span>正在检查服务器状态...</span>
+    </div>
+    <div class="info-section" id="stats-section">
+      <h3>📊 投递统计</h3>
+      <div class="info-row"><span class="label">今日投递</span><span class="value" id="today-count">-</span></div>
+      <div class="info-row"><span class="label">总计投递</span><span class="value" id="total-count">-</span></div>
+      <div class="info-row"><span class="label">已上传简历</span><span class="value" id="resume-count">-</span></div>
+    </div>
+    <div class="settings-section">
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">自动提取岗位</div>
+          <div class="setting-hint">打开文章时自动提取</div>
+        </div>
+        <div class="toggle" id="toggle-auto-extract"></div>
+      </div>
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">跳过人工确认</div>
+          <div class="setting-hint">优化完成后直接发送</div>
+        </div>
+        <div class="toggle" id="toggle-skip-review"></div>
+      </div>
+    </div>
+  </div>
+  <div class="popup-footer">
+    简历智投 v1.0.0 | 请确保后端服务已启动
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
