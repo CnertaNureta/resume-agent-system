@@ -16,7 +16,24 @@ for (const dir of [uploadsDir, customizedDir]) {
 
 // 中间件
 app.use(cors({
-  origin: ['chrome-extension://*', 'https://mp.weixin.qq.com'],
+  origin: (origin, callback) => {
+    // 允许无 Origin 的请求（如 curl/健康检查）
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    const allowList = [
+      'https://mp.weixin.qq.com',
+    ];
+
+    if (allowList.includes(origin) || origin.startsWith('chrome-extension://')) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
