@@ -1,8 +1,23 @@
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ZhipuAI } from 'zhipuai';
 import { JobInfo, ResumeData, CustomizedResume } from '../types';
+
+type ChatCompletionResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+};
+
+type ZhipuClient = {
+  chat: {
+    completions: {
+      create: (params: Record<string, unknown>) => Promise<ChatCompletionResponse>;
+    };
+  };
+};
 
 /**
  * 简历定制服务
@@ -10,7 +25,8 @@ import { JobInfo, ResumeData, CustomizedResume } from '../types';
  */
 export class ResumeCustomizer {
   private outputDir: string;
-  private client: ZhipuAI | null = null;
+  private client: ZhipuClient | null = null;
+  private aiUnavailableReason: string | null = null;
 
   constructor(outputDir: string) {
     this.outputDir = outputDir;
@@ -18,7 +34,27 @@ export class ResumeCustomizer {
       fs.mkdirSync(outputDir, { recursive: true });
     }
     if (process.env.ZHIPUAI_API_KEY) {
-      this.client = new ZhipuAI({ apiKey: process.env.ZHIPUAI_API_KEY });
+      this.client = this.createAiClient(process.env.ZHIPUAI_API_KEY);
+    } else {
+      this.aiUnavailableReason = '未配置 ZHIPUAI_API_KEY';
+    }
+  }
+
+  private createAiClient(apiKey: string): ZhipuClient | null {
+    try {
+      // zhipuai 依赖可能在部分环境中缺失，此处做运行时兜底
+      const sdk = require('zhipuai');
+      const ClientCtor = sdk?.ZhipuAI || sdk?.default;
+      if (!ClientCtor) {
+        this.aiUnavailableReason = 'zhipuai SDK 已安装，但未找到可用的客户端构造函数';
+        console.warn(`${this.aiUnavailableReason}，使用规则匹配模式`);
+        return null;
+      }
+      return new ClientCtor({ apiKey }) as ZhipuClient;
+    } catch (error) {
+      this.aiUnavailableReason = `未安装或无法加载 zhipuai SDK: ${error instanceof Error ? error.message : String(error)}`;
+      console.warn(`${this.aiUnavailableReason}，使用规则匹配模式`);
+      return null;
     }
   }
 
@@ -42,7 +78,7 @@ export class ResumeCustomizer {
       emailBody = aiResult.emailBody;
     } else {
       // 回退到规则匹配
-      console.warn('未配置 ZHIPUAI_API_KEY，使用规则匹配模式');
+      console.warn(`${this.aiUnavailableReason || 'AI 服务不可用'}，使用规则匹配模式`);
       customizedText = this.fallbackCustomize(resume, jobInfo);
       coverLetter = this.fallbackCoverLetter(resume, jobInfo);
       emailSubject = `求职申请 - ${jobInfo.title} - ${resume.parsedSections.name || '候选人'}`;
@@ -115,7 +151,7 @@ ${resume.rawText}
       temperature: 0.7,
       max_tokens: 3000,
     });
-    const customizedResume = resumeResponse.choices[0]?.message?.content || this.fallbackCustomize(resume, jobInfo);
+    const customizedResume = resumeResponse.choices?.[0]?.message?.content || this.fallbackCustomize(resume, jobInfo);
 
     // 2. 生成求职信 + 邮件主题 + 邮件正文
     const emailResponse = await this.client!.chat.completions.create({
@@ -151,7 +187,7 @@ ${resume.parsedSections.summary ? `简介：${resume.parsedSections.summary.subs
       max_tokens: 2000,
     });
 
-    const emailContent = emailResponse.choices[0]?.message?.content || '';
+    const emailContent = emailResponse.choices?.[0]?.message?.content || '';
 
     // 解析 JSON 响应
     let coverLetter: string;
