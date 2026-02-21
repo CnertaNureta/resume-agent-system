@@ -15,8 +15,30 @@ for (const dir of [uploadsDir, customizedDir]) {
 }
 
 // 中间件
+const allowedOrigins = [
+  /^chrome-extension:\/\/[a-p]{32}$/,
+  'https://mp.weixin.qq.com',
+];
+
 app.use(cors({
-  origin: ['chrome-extension://*', 'https://mp.weixin.qq.com'],
+  origin: (origin, callback) => {
+    // 允许同源请求或无 Origin 的工具请求（例如健康检查）
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    const isAllowed = allowedOrigins.some(allowed => (
+      typeof allowed === 'string' ? allowed === origin : allowed.test(origin)
+    ));
+
+    if (isAllowed) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
